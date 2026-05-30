@@ -38,6 +38,7 @@ class ProjectTree(QTreeView):
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._on_context_menu)
         self.doubleClicked.connect(self._on_double_clicked)
+        self.clicked.connect(self._on_clicked)
         self.selectionModel().selectionChanged.connect(self._on_selection_changed)
 
     def refresh(self, project: Project):
@@ -119,6 +120,12 @@ class ProjectTree(QTreeView):
         obj_type, obj_id = self._get_item_data(index)
         if obj_type and obj_type not in ("project", "sv_group", "bus_group", "device_group"):
             self.item_double_clicked.emit(obj_type, obj_id)
+
+    def _on_clicked(self, index: QModelIndex):
+        """用户单击 — 使用信号传入的 index, 比 selectionChanged 更可靠。"""
+        obj_type, obj_id = self._get_item_data(index)
+        if obj_type and obj_type not in ("project", "sv_group", "bus_group", "device_group"):
+            self.item_selected.emit(obj_type, obj_id)
 
     def _on_selection_changed(self):
         obj_type, obj_id = self._get_item_data(self.currentIndex())

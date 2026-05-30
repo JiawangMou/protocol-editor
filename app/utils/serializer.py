@@ -15,7 +15,7 @@ from app.models.protocol import Project, Device, DeviceInterface, Protocol, Prot
 from app.models.protocol import (
     EthernetParams, RS422Params, RS232Params, CANParams, CANFDParams,
     UARTFrameConfig, CANFrameConfig, EthernetFrameConfig,
-    CRC_BYTE_SIZES,
+    CRC_BYTE_SIZES, sync_counter_from_project,
 )
 from app.models.enums import *
 
@@ -281,7 +281,56 @@ def load_project(filepath: str) -> Project:
     data = _migrate_v1_to_v2(data)
     # 替换 params 和 frame_config 中的 _type 标记对象
     _reconstruct(data)
-    return _decode_dataclass(Project, data)
+    project = _decode_dataclass(Project, data)
+    # 修复可能因 ID 计数器复位导致的重复 ID, 并同步全局计数器
+    _repair_duplicate_ids(project)
+    sync_counter_from_project(project)
+    return project
+
+
+def _repair_duplicate_ids(project: Project):
+    """检测并修复同一父级列表中的重复 ID (由全局计数器复位导致)。
+    全局计数器在每次应用启动时从 0 开始, 已保存工程中的 ID 可能被新对象复用。"""
+    fixed_count = 0
+
+    for d in project.devices:
+        # 状态量: 同一设备的 status_variables 内 ID 必须唯一
+        sv_seen = set()
+        for sv in d.status_variables:
+            if sv.id in sv_seen:
+                old_id = sv.id
+                sv.id = _new_id_for_prefix("sv")
+                fixed_count += 1
+            else:
+                sv_seen.add(sv.id)
+        # 协议和字段: 同一接口的 protocols 内 ID 必须唯一
+        for iface in d.interfaces:
+            p_seen = set()
+            for p in iface.protocols:
+                if p.id in p_seen:
+                    old_id = p.id
+                    p.id = _new_id_for_prefix("p")
+                    fixed_count += 1
+                else:
+                    p_seen.add(p.id)
+                fld_seen = set()
+                for fld in p.fields:
+                    if fld.id in fld_seen:
+                        old_fld = fld.id
+                        fld.id = _new_id_for_prefix("f")
+                        fixed_count += 1
+                    else:
+                        fld_seen.add(fld.id)
+
+    if fixed_count > 0:
+        import logging
+        logging.warning(f"_repair_duplicate_ids: 修复了 {fixed_count} 个重复 ID")
+
+
+def _new_id_for_prefix(prefix: str) -> str:
+    """Generates a unique ID respecting the current global counter."""
+    from app.models.protocol import _new_id
+    return _new_id(prefix)
 
 
 def _reconstruct(node: Any) -> Any:

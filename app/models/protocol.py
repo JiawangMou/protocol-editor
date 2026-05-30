@@ -21,6 +21,39 @@ def _new_id(prefix: str = "") -> str:
     return f"{prefix}{_counter}"
 
 
+def sync_counter_from_project(project: "Project"):
+    """从已加载工程的各项 ID 中提取最大数字后缀, 同步全局 _counter。
+    防止新建对象时产生重复 ID (counter 复位为0导致与已有 ID 碰撞)。"""
+    global _counter
+    max_n = 0
+    for d in project.devices:
+        max_n = max(max_n, _extract_num(d.id))
+        for sv in d.status_variables:
+            max_n = max(max_n, _extract_num(sv.id))
+        for iface in d.interfaces:
+            max_n = max(max_n, _extract_num(iface.id))
+            for p in iface.protocols:
+                max_n = max(max_n, _extract_num(p.id))
+                for fld in p.fields:
+                    max_n = max(max_n, _extract_num(fld.id))
+    for bc in project.bus_configs:
+        max_n = max(max_n, _extract_num(bc.id))
+    for conn in project.connections:
+        max_n = max(max_n, _extract_num(conn.id))
+    _counter = max(_counter, max_n)
+
+
+def _extract_num(id_str: str) -> int:
+    """从 id 字符串 (如 'sv6', 'd2', 'p1') 提取末尾数字部分。"""
+    num = ""
+    for ch in reversed(id_str):
+        if ch.isdigit():
+            num = ch + num
+        else:
+            break
+    return int(num) if num else 0
+
+
 # ── 数据类型 → 字节长度映射 ──
 DATA_TYPE_BYTE_SIZES: dict[DataType, int] = {
     DataType.UINT8: 1, DataType.INT8: 1, DataType.BOOL: 1,

@@ -314,8 +314,10 @@ def generate_docx(project: Project, output_path: str):
                     field_rows = []
                     offset = 0
                     for fld in proto.fields:
+                        end = offset + fld.byte_length - 1
+                        byte_label = f"{offset}-{end}" if fld.byte_length > 1 else str(offset)
                         field_rows.append([
-                            str(offset),
+                            byte_label,
                             fld.name,
                             str(fld.byte_length),
                             fld.data_type.value,

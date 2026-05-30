@@ -137,14 +137,13 @@ class MainWindow(QMainWindow):
         self._central_stack = QStackedWidget()
         self.setCentralWidget(self._central_stack)
 
-        # Page 0: 欢迎页
-        welcome = QLabel("双击左侧工程树中的协议对象开始编辑协议内容\n\n"
-                          "或使用编辑菜单添加总线、设备、接口、状态量和协议。")
-        welcome.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        welcome.setStyleSheet("color: #888; font-size: 14px;")
-        self._central_stack.addWidget(welcome)
+        # Page 0: 总线拓扑图 (默认显示)
+        self._topology = TopologyCanvas(self._project)
+        self._topology.device_selected.connect(self._on_device_selected)
+        self._topology.device_double_clicked.connect(self._on_device_double_clicked)
+        self._central_stack.addWidget(self._topology)
 
-        # Page 1: 协议内容编辑器
+        # Page 1: 协议内容编辑表格 (双击协议对象打开)
         self._proto_editor = ProtocolContentEditor()
         self._proto_editor.saved.connect(self._on_protocol_saved)
         self._proto_editor.cancelled.connect(self._on_protocol_cancelled)
@@ -152,15 +151,6 @@ class MainWindow(QMainWindow):
 
     # ── Docks ──
     def _setup_docks(self):
-        # Top: topology canvas (可关闭的总线拓扑图)
-        self._topo_dock = QDockWidget("总线拓扑图", self)
-        self._topology = TopologyCanvas(self._project)
-        self._topology.device_selected.connect(self._on_device_selected)
-        self._topology.device_double_clicked.connect(self._on_device_double_clicked)
-        self._topo_dock.setWidget(self._topology)
-        self._topo_dock.setMinimumHeight(200)
-        self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, self._topo_dock)
-
         # Left: project tree
         self._tree_dock = QDockWidget("工程导航", self)
         self._tree = ProjectTree(self._project)
@@ -195,12 +185,11 @@ class MainWindow(QMainWindow):
         self._log_dock.setWidget(self._log_widget)
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self._log_dock)
 
-        # Tabify status and log
+        # Tabify status and log in the bottom area
         self.tabifyDockWidget(self._status_dock, self._log_dock)
         self._status_dock.raise_()
 
         # 注册各面板的 "视图" 菜单切换动作 (关闭后可重新打开)
-        self._view_menu.addAction(self._topo_dock.toggleViewAction())
         self._view_menu.addAction(self._tree_dock.toggleViewAction())
         self._view_menu.addAction(self._prop_dock.toggleViewAction())
         self._view_menu.addAction(self._status_dock.toggleViewAction())
@@ -307,9 +296,16 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"通讯协议编辑器 — {self._project.name}{dirty}")
 
     def _on_tree_selection(self, obj_type: str, obj_id: str):
-        """工程树选择变更 → 同步属性面板和状态量表。"""
+        """工程树选择变更 → 同步属性面板和状态量表。单击协议时同步切换协议编辑器。"""
         self._prop_panel.show_object(self._project, obj_type, obj_id)
         self._status_table.set_current_node_by_selection(obj_type, obj_id)
+
+        if obj_type == "protocol":
+            device = self._project.find_parent_device_of_protocol(obj_id)
+            proto = self._project.find_protocol(obj_id)
+            if device and proto:
+                self._proto_editor.set_protocol(self._project, proto, device)
+                self._central_stack.setCurrentIndex(1)
 
     def _on_device_selected(self, device_id: str):
         """拓扑图中设备被点击时: 同步树选中、状态量表和属性面板。"""
@@ -340,7 +336,7 @@ class MainWindow(QMainWindow):
         self._log("协议内容已保存")
 
     def _on_protocol_cancelled(self):
-        """协议编辑取消 — 回到欢迎页。"""
+        """协议编辑取消 — 回到总线拓扑图。"""
         self._central_stack.setCurrentIndex(0)
 
     def _on_tree_add(self, what: str):

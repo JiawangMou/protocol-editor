@@ -143,6 +143,7 @@ class DataTypeDelegate(QStyledItemDelegate):
 
 class StatusTable(QWidget):
     data_modified = Signal()
+    status_var_edited = Signal(str)  # 携带被编辑状态量的 id
 
     def __init__(self, project: Project, parent=None):
         super().__init__(parent)
@@ -171,6 +172,7 @@ class StatusTable(QWidget):
         layout.addLayout(tb)
 
         self._model = StatusTableModel()
+        self._model.dataChanged.connect(self._on_model_data_changed)
         self._table = QTableView()
         self._table.setModel(self._model)
         self._table.horizontalHeader().setStretchLastSection(True)
@@ -222,6 +224,17 @@ class StatusTable(QWidget):
         sv = StatusVariable(name=f"状态量{len(self._model._device.status_variables) + 1}")
         self._model._device.status_variables.append(sv)
         self._model.notify_changed()
+        self.data_modified.emit()
+
+    def _on_model_data_changed(self, topLeft, bottomRight):
+        """状态量表格单元格编辑完成 → 同步协议字段 + 通知主窗口。"""
+        if not self._model._device:
+            return
+        sv = self._model._device.status_variables[topLeft.row()]
+        # 同步已保存到模型的协议字段 (Project 层)
+        self._project.sync_fields_from_status_var(sv)
+        # 通知主窗口刷新视图并同步编辑器工作副本
+        self.status_var_edited.emit(sv.id)
         self.data_modified.emit()
 
     def _del_status_var(self):

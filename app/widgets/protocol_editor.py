@@ -288,6 +288,23 @@ class ProtocolContentEditor(QWidget):
         self._work_fields.pop(idx.row())
         self._model.set_fields(self._work_fields)
 
+    def sync_status_variable(self, sv: StatusVariable):
+        """状态量已变更 → 同步编辑器工作副本中引用此状态量的所有字段。
+        仅影响 source=STATUS_VAR 且 status_var_ref 匹配的字段。
+        """
+        updated = False
+        for fld in self._work_fields:
+            if (fld.status_var_ref == sv.id
+                    and fld.source == FieldSource.STATUS_VAR):
+                fld.name = sv.name
+                fld.data_type = sv.data_type
+                fld.byte_length = sv.byte_length
+                fld.description = sv.meaning
+                fld.unit = sv.unit
+                updated = True
+        if updated:
+            self._model.set_fields(self._work_fields)
+
     def _pick_status_var(self):
         """从当前设备的状态量中选择, 若表格中有选中行则替换, 否则追加到末尾。"""
         if not self._device or not self._protocol:

@@ -174,6 +174,7 @@ class MainWindow(QMainWindow):
         self._status_dock = QDockWidget("状态量管理", self)
         self._status_table = StatusTable(self._project)
         self._status_table.data_modified.connect(self._on_status_modified)
+        self._status_table.status_var_edited.connect(self._on_status_var_edited)
         self._status_dock.setWidget(self._status_table)
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self._status_dock)
 
@@ -318,6 +319,14 @@ class MainWindow(QMainWindow):
 
     def _on_status_modified(self):
         self._refresh_all()
+
+    def _on_status_var_edited(self, sv_id: str):
+        """状态量编辑后: 同步协议编辑器的工作副本 (若当前设备匹配)。"""
+        if self._proto_editor._device and self._proto_editor._protocol:
+            sv = self._proto_editor._device.status_variables
+            target = next((s for s in sv if s.id == sv_id), None)
+            if target:
+                self._proto_editor.sync_status_variable(target)
 
     def _on_tree_double_clicked(self, obj_type: str, obj_id: str):
         """工程树双击: 协议对象 → 在中心区域打开内容编辑表格。"""

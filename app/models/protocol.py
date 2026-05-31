@@ -346,3 +346,24 @@ class Project:
                     if proto.id == proto_id:
                         return iface
         return None
+
+    def sync_fields_from_status_var(self, sv: StatusVariable) -> int:
+        """状态量变更后, 同步所有引用该状态量的协议字段 (源=STATUS_VAR)。
+
+        同步内容: 名称、数据类型、字节长度、含义、单位。
+        返回受影响的字段数量。
+        """
+        count = 0
+        for device in self.devices:
+            for iface in device.interfaces:
+                for proto in iface.protocols:
+                    for fld in proto.fields:
+                        if (fld.status_var_ref == sv.id
+                                and fld.source == FieldSource.STATUS_VAR):
+                            fld.name = sv.name
+                            fld.data_type = sv.data_type
+                            fld.byte_length = sv.byte_length
+                            fld.description = sv.meaning
+                            fld.unit = sv.unit
+                            count += 1
+        return count

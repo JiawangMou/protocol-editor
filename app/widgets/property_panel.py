@@ -138,12 +138,12 @@ class PropertyPanel(QScrollArea):
         layout.addWidget(g1)
 
         # 帧格式编辑 (按类型切换)
+        # RS422 和 RS232 共用同一组 UART 控件，不可创建两份否则 self._bc_u_* 被覆盖
         self._bc_config_stack = QStackedWidget()
-        self._bc_config_stack.addWidget(self._build_uart_config_widget())
-        self._bc_config_stack.addWidget(self._build_uart_config_widget())  # RS232 复用 UART
-        self._bc_config_stack.addWidget(self._build_eth_config_widget())
-        self._bc_config_stack.addWidget(self._build_can_config_widget())
-        self._bc_config_stack.addWidget(self._build_canfd_config_widget())
+        self._bc_config_stack.addWidget(self._build_uart_config_widget())  # 0: UART (rs422/rs232)
+        self._bc_config_stack.addWidget(self._build_eth_config_widget())   # 1: Ethernet
+        self._bc_config_stack.addWidget(self._build_can_config_widget())   # 2: CAN
+        self._bc_config_stack.addWidget(self._build_canfd_config_widget()) # 3: CANFD
         g2 = QGroupBox("帧格式参数")
         f2_layout = QVBoxLayout(g2)
         f2_layout.addWidget(self._bc_config_stack)
@@ -399,8 +399,9 @@ class PropertyPanel(QScrollArea):
 
     def _on_bc_type_changed(self, idx: int):
         # 类型下拉: 0=rs422, 1=rs232, 2=ethernet, 3=can, 4=canfd
-        # config_stack: 0=UART(rs422), 1=UART(rs232), 2=Eth, 3=CAN, 4=CANFD
-        self._bc_config_stack.setCurrentIndex(idx)
+        # config_stack: 0=UART(rs422+rs232), 1=Eth, 2=CAN, 3=CANFD
+        page = {0: 0, 1: 0, 2: 1, 3: 2, 4: 3}.get(idx, 0)
+        self._bc_config_stack.setCurrentIndex(page)
 
     def _on_proto_cat_changed(self, idx: int):
         cat_map = {
